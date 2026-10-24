@@ -1,0 +1,190 @@
+{
+  "domain": "factory",
+  "label": "Factory machine",
+  "note": "IMS bearings: fit on ['set1_bearing3', 'set3_bearing3'], validate on set1_bearing4, test on set2_bearing1",
+  "unit": "readings",
+  "cap": 150,
+  "quick_run": false,
+  "seeds": 5,
+  "train_minutes": 4.6,
+  "features_total": 12,
+  "selected": [
+    "rms",
+    "kurtosis",
+    "std",
+    "shape",
+    "e_mid"
+  ],
+  "selected_count": 5,
+  "ga": {
+    "best_fitness": 18.5422936302412,
+    "history": {
+      "best": [
+        20.29814013883991,
+        19.396209474473896,
+        19.38318258286215,
+        19.21540556219857,
+        19.032262620720747,
+        19.032262620720747,
+        18.657267002646478,
+        18.657267002646478,
+        18.657267002646478,
+        18.657267002646478,
+        18.657267002646478,
+        18.657267002646478,
+        18.657267002646478,
+        18.5422936302412,
+        18.5422936302412
+      ],
+      "mean": [
+        35.59809451307828,
+        24.634893664817934,
+        25.22915345849718,
+        21.790534313407612,
+        24.361568253110494,
+        20.060281397758438,
+        19.704094964240745,
+        22.859652306016578,
+        21.71541022634372,
+        25.190970397714228,
+        22.026243296194533,
+        19.451940347394455,
+        20.82448578999355,
+        19.35430391551062,
+        19.52634486630713
+      ],
+      "evals": 118
+    },
+    "evals": 118
+  },
+  "pso": {
+    "best_fitness": 18.657267002646478,
+    "history": {
+      "best": [
+        20.00562701752513,
+        19.585072751662626,
+        19.362523906085517,
+        19.30486055875043,
+        19.30486055875043,
+        19.30486055875043,
+        19.255579770656883,
+        19.032262620720747,
+        19.032262620720747,
+        19.032262620720747,
+        18.807267002646483,
+        18.807267002646483,
+        18.657267002646478,
+        18.657267002646478
+      ],
+      "evals": 272
+    },
+    "selected_count": 3
+  },
+  "hyperparameters": {
+    "hidden": [
+      32
+    ],
+    "alpha": 0.001,
+    "lr": 0.001,
+    "val_rmse": 17.260175601711804,
+    "history": {
+      "best": [
+        17.42282007398769,
+        17.42282007398769,
+        17.260674308217936,
+        17.260674308217936,
+        17.260175601711804
+      ],
+      "mean": [
+        21.79835258891558,
+        21.22176888819152,
+        19.906509143763838,
+        18.83015807798333,
+        19.032244005808927
+      ],
+      "evals": 21
+    }
+  },
+  "models": [
+    {
+      "name": "Linear Regression (all sensors)",
+      "seeds": 5,
+      "rmse": 40.32030203041806,
+      "rmse_std": 0.0,
+      "rmse_capped": 40.32030203041806,
+      "rmse_capped_std": 0.0,
+      "nasa": 25058.12292001844,
+      "nasa_std": 0.0
+    },
+    {
+      "name": "Random Forest (all sensors)",
+      "seeds": 5,
+      "rmse": 33.10946151704794,
+      "rmse_std": 0.6150165208094527,
+      "rmse_capped": 33.10946151704794,
+      "rmse_capped_std": 0.6150165208094527,
+      "nasa": 175584.61618889688,
+      "nasa_std": 23202.887813186724
+    },
+    {
+      "name": "ANN (all sensors)",
+      "seeds": 5,
+      "rmse": 26.24864722855026,
+      "rmse_std": 5.0239599148743075,
+      "rmse_capped": 26.24864722855026,
+      "rmse_capped_std": 5.0239599148743075,
+      "nasa": 89141.46036383712,
+      "nasa_std": 37058.00692267962
+    },
+    {
+      "name": "ANN + GA sensors",
+      "seeds": 5,
+      "rmse": 25.088805822940937,
+      "rmse_std": 0.4824370334096674,
+      "rmse_capped": 25.088805822940937,
+      "rmse_capped_std": 0.4824370334096674,
+      "nasa": 605462.0404628215,
+      "nasa_std": 200222.62864521626
+    },
+    {
+      "name": "ANN + GA sensors + GA-tuned (proposed)",
+      "seeds": 5,
+      "rmse": 20.522288393556572,
+      "rmse_std": 4.762348342516201,
+      "rmse_capped": 20.522288393556572,
+      "rmse_capped_std": 4.762348342516201,
+      "nasa": 19977.673914684234,
+      "nasa_std": 9268.714934323232
+    }
+  ],
+  "alerts": {
+    "fuzzy": {
+      "units": 2,
+      "mean_warning_lead": 1135.5,
+      "mean_critical_lead": 13.5,
+      "min_critical_lead": 0,
+      "critical_missed": 1,
+      "critical_in_time_pct": 50.0,
+      "false_warning_rate_pct": 2.676056338028169,
+      "false_critical_rate_pct": 0.0
+    },
+    "threshold_baseline": {
+      "units": 2,
+      "mean_warning_lead": 10.5,
+      "mean_critical_lead": 5.5,
+      "min_critical_lead": 0,
+      "critical_missed": 1,
+      "critical_in_time_pct": 50.0,
+      "false_warning_rate_pct": 0.0,
+      "false_critical_rate_pct": 0.0
+    }
+  },
+  "fuzzy_rules": [
+    "IF life left is long AND wear is slow THEN Normal",
+    "IF life left is long AND wear is fast THEN Warning",
+    "IF life left is medium AND wear is slow THEN Warning",
+    "IF life left is medium AND wear is fast THEN Critical",
+    "IF life left is short THEN Critical"
+  ],
+  "test_metric_note": "RMSE over every reading of the test run (capped life left)"
+}

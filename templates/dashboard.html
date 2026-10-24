@@ -1,0 +1,714 @@
+<title>Predictive Maintenance Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: one dark instrument panel with a machine-type switch on top. Left: three scrolling sensor traces, then predicted vs actual life. Right: life-left gauge, alert, stat tiles, derating, fuzzy rules. Below: GA feature selection beside an event log, then a full-life timeline. Each sensor has its own hue; the alert colour tints grid, gauge and status. */
+:root {
+  --bg: #06080b;
+  --panel: #0c1116;
+  --panel-2: #121921;
+  --line: #1b252e;
+  --fg: #dce6ec;
+  --muted: #7f8f9a;
+  --ok: #3ddc84;
+  --warn: #ffb020;
+  --crit: #ff3b3b;
+  --s1: #35d0ff;
+  --s2: #ff5ec4;
+  --s3: #a78bfa;
+  --font-display: "Chakra Petch", "Arial Narrow", sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  padding-inline: 16px;
+  padding-block: 20px 32px;
+}
+.wrap { max-width: 1120px; margin-inline: auto; display: flex; flex-direction: column; gap: 16px; }
+header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px 24px; }
+header > div:first-child { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: 26px; letter-spacing: .02em; margin: 0; text-wrap: balance; }
+.sub { color: var(--muted); max-width: 68ch; margin: 4px 0 0; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+select, button {
+  font: 500 13px var(--font-data);
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 8px 12px;
+  min-height: 36px;
+  cursor: pointer;
+}
+select:hover, button:hover { border-color: var(--muted); }
+select:focus-visible, button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+button[aria-pressed="true"] { border-color: var(--ok); color: var(--ok); }
+.switch { display: inline-flex; align-self: flex-start; }
+.switch button { border-radius: 0; font: 600 13px var(--font-display); letter-spacing: .06em; padding: 8px 16px; }
+.switch button:first-child { border-radius: 4px 0 0 4px; }
+.switch button:last-child { border-radius: 0 4px 4px 0; margin-left: -1px; }
+.switch button[aria-pressed="true"] { border-color: var(--s1); color: var(--s1); background: rgba(53, 208, 255, .1); position: relative; z-index: 1; }
+.grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px; }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 820px) { .grid, .grid2 { grid-template-columns: minmax(0, 1fr); } }
+.col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+.label { font: 500 11px var(--font-data); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.trace { position: relative; height: 112px; overflow: hidden; background: #040507; border-left: 3px solid var(--tc); }
+.trace canvas { display: block; width: 100%; height: 100%; }
+.trace .label { position: absolute; left: 12px; top: 8px; color: var(--tc); }
+.trace .val { position: absolute; right: 12px; top: 6px; font: 500 14px var(--font-data); font-variant-numeric: tabular-nums; color: var(--tc); }
+.chart { position: relative; height: 190px; padding: 0; overflow: hidden; }
+.chart canvas { display: block; width: 100%; height: 100%; }
+.chart .label { position: absolute; left: 12px; top: 8px; }
+.key { position: absolute; right: 12px; top: 8px; display: flex; gap: 14px; font: 400 11px var(--font-data); color: var(--muted); }
+.key i { display: inline-block; width: 14px; height: 0; border-top: 2px solid var(--s1); vertical-align: middle; margin-right: 6px; }
+.key i.t { border-top: 2px dashed var(--fg); }
+.readout { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.gauge-box { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.gauge { width: 160px; max-width: 100%; flex: none; }
+.big { font: 700 44px/1 var(--font-display); font-variant-numeric: tabular-nums; }
+.big small { font: 500 12px var(--font-data); color: var(--muted); letter-spacing: .08em; margin-left: 6px; text-transform: uppercase; }
+.pill { display: inline-block; align-self: flex-start; font: 700 18px var(--font-display); letter-spacing: .14em; padding: 6px 14px; border-radius: 4px; border: 1px solid currentColor; }
+.advice { margin: 0; color: var(--fg); }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat { background: var(--panel-2); border-radius: 4px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; border-top: 2px solid var(--sc); }
+.stat b { font: 500 18px var(--font-data); font-variant-numeric: tabular-nums; color: var(--sc); }
+.stat span { font: 400 11px var(--font-data); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+.bar { height: 8px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--ok); width: 100%; transition: width .25s linear, background .25s linear; }
+.speedrow { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.speedrow b { font: 500 16px var(--font-data); font-variant-numeric: tabular-nums; }
+.rules { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.rules li { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 10px; align-items: center; font-size: 12.5px; color: var(--muted); padding: 6px 8px; border-radius: 4px; border: 1px solid transparent; }
+.rules li.on { color: var(--fg); border-color: var(--line); background: var(--panel-2); }
+.rules li span.s { font: 500 12px var(--font-data); text-align: right; font-variant-numeric: tabular-nums; }
+.rules em { font-style: normal; font-weight: 500; }
+.chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
+.chip { font: 500 12px var(--font-data); text-align: center; padding: 6px 0; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); overflow: hidden; }
+.chip.sel { color: var(--s1); border-color: var(--s1); background: rgba(53, 208, 255, .08); }
+.chip.hot { color: var(--s2); border-color: var(--s2); background: rgba(255, 94, 196, .1); }
+.chip.off { text-decoration: line-through; opacity: .55; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font: 400 12px var(--font-data); color: var(--muted); }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; background: var(--lc); }
+.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 232px; overflow-y: auto; }
+.log li { display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 10px; font-size: 13px; padding: 6px 8px; background: var(--panel-2); border-radius: 4px; border-left: 3px solid var(--lc); }
+.log li b { font: 500 12px var(--font-data); color: var(--lc); font-variant-numeric: tabular-nums; }
+.timeline { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.timeline canvas { display: block; width: 100%; height: 18px; border-radius: 2px; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px 28px; font: 400 13px var(--font-data); font-variant-numeric: tabular-nums; }
+.facts b { font-weight: 500; }
+.note { color: var(--muted); font-size: 12.5px; margin: 0; max-width: 90ch; }
+.hint { color: var(--muted); font-size: 12px; }
+.live { color: var(--ok); }
+.pop { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 50; opacity: 0; visibility: hidden; transition: opacity .2s ease, visibility .2s; }
+.pop.show { opacity: 1; visibility: visible; }
+.pop-card { width: 224px; max-width: calc(100vw - 48px); padding: 28px 20px 22px; background: #08090b; border: 1px solid #243038; border-radius: 16px; box-shadow: 0 24px 70px rgba(0, 0, 0, .65); display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; transform: scale(.92); transition: transform .2s ease; }
+.pop.show .pop-card { transform: scale(1); }
+.pop-icon { width: 76px; height: 76px; color: var(--pc); filter: drop-shadow(0 0 10px var(--pc)); }
+.pop-icon.fly { animation: popfly .6s cubic-bezier(.2, .8, .2, 1) both; }
+.pop-icon.spin { animation: popspin .8s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes popfly { from { transform: translate(-22px, 22px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes popspin { from { transform: rotate(-140deg) scale(.8); opacity: 0; } to { transform: none; opacity: 1; } }
+.pop-t { font: 600 22px var(--font-display); letter-spacing: .02em; color: var(--fg); }
+.pop-s { font: 400 12px var(--font-data); color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .pop, .pop-card { transition: none; } .pop-icon.fly, .pop-icon.spin { animation: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <div class="switch" role="group" aria-label="Machine type">
+        <button id="d-aircraft" type="button" aria-pressed="true">Aircraft engine</button>
+        <button id="d-factory" type="button" aria-pressed="false">Factory machine</button>
+      </div>
+      <div>
+        <h1>Predictive Maintenance Monitor</h1>
+        <p class="sub" id="sub"></p>
+      </div>
+    </div>
+    <div class="controls" role="group" aria-label="Replay controls">
+      <select id="engine" aria-label="Unit"></select>
+      <button id="play" type="button">Pause</button>
+      <button id="restart" type="button">Restart</button>
+      <select id="speed" aria-label="Replay speed">
+        <option value="1">1x</option>
+        <option value="3" selected>3x</option>
+        <option value="6">6x</option>
+      </select>
+      <button id="sound" type="button" aria-pressed="false">Sound off</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="col">
+      <div class="panel trace" style="--tc:var(--s1)"><span class="label" id="lb0"></span><span class="val" id="v0"></span><canvas id="c0" aria-label="Sensor trace 1"></canvas></div>
+      <div class="panel trace" style="--tc:var(--s2)"><span class="label" id="lb1"></span><span class="val" id="v1"></span><canvas id="c1" aria-label="Sensor trace 2"></canvas></div>
+      <div class="panel trace" style="--tc:var(--s3)"><span class="label" id="lb2"></span><span class="val" id="v2"></span><canvas id="c2" aria-label="Sensor trace 3"></canvas></div>
+      <div class="panel chart">
+        <span class="label">Predicted vs actual life left</span>
+        <div class="key"><span><i></i>ANN prediction</span><span><i class="t"></i>Actual</span></div>
+        <canvas id="pc" aria-label="Predicted versus actual life left"></canvas>
+      </div>
+      <div class="hint">Trace values are an index against the healthy baseline. Click Sound on once to hear the machine; pitch and roughness follow the alert score.</div>
+    </div>
+
+    <div class="col">
+      <div class="panel readout">
+        <span class="label">Predicted life left</span>
+        <div class="gauge-box">
+          <svg class="gauge" viewBox="0 0 180 104" role="img" aria-label="Life left gauge">
+            <path d="M10 92 A80 80 0 0 1 170 92" fill="none" stroke="var(--line)" stroke-width="12" stroke-linecap="round"/>
+            <path id="arc" d="M10 92 A80 80 0 0 1 170 92" fill="none" stroke="var(--ok)" stroke-width="12" stroke-linecap="round" stroke-dasharray="251.3" stroke-dashoffset="0"/>
+          </svg>
+          <div>
+            <div class="big"><span id="rul">--</span><small id="unit-small">flights</small></div>
+            <div class="hint" id="cyc">--</div>
+          </div>
+        </div>
+        <span class="pill" id="pill">NORMAL</span>
+        <p class="advice" id="advice"></p>
+        <div class="stats">
+          <div class="stat" style="--sc:var(--ok)" id="st-h"><b id="s-health">--</b><span>Health index</span></div>
+          <div class="stat" style="--sc:var(--s2)"><b id="s-wear">--</b><span>Wear rate</span></div>
+          <div class="stat" style="--sc:var(--s3)"><b id="s-score">--</b><span>Fuzzy score</span></div>
+          <div class="stat" style="--sc:var(--s1)"><b id="s-err">--</b><span id="s-err-l">ANN error</span></div>
+        </div>
+      </div>
+
+      <div class="panel readout">
+        <div class="speedrow"><span class="label" id="spd-l"></span><b id="spd">100%</b></div>
+        <div class="bar"><i id="spdbar"></i></div>
+      </div>
+
+      <div class="panel readout">
+        <span class="label">Fuzzy rules</span>
+        <ul class="rules" id="rules"></ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="panel readout">
+      <span class="label" id="ga-l">GA feature selection (example)</span>
+      <div class="chips" id="chips"></div>
+      <div class="legend" id="legend"></div>
+      <p class="note" id="ga-note"></p>
+    </div>
+    <div class="panel readout">
+      <span class="label">Event log</span>
+      <ul class="log" id="log"></ul>
+    </div>
+  </div>
+
+  <div class="panel timeline">
+    <span class="label" id="tl-l"></span>
+    <canvas id="strip" aria-label="Alert level across the life"></canvas>
+    <div class="facts">
+      <span>First warning: <b id="fw">--</b></span>
+      <span>First critical: <b id="fc">--</b></span>
+      <span>Actual failure: <b id="ff">--</b></span>
+      <span id="lead"></span>
+    </div>
+    <p class="note" id="tl-note"></p>
+  </div>
+</div>
+
+<div class="pop" id="pop" role="status" aria-live="polite">
+  <div class="pop-card">
+    <svg class="pop-icon" id="pop-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"></svg>
+    <div class="pop-t" id="pop-t"></div>
+    <div class="pop-s" id="pop-s"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var css = getComputedStyle(document.documentElement);
+  function tok(n) { return css.getPropertyValue(n).trim(); }
+  var COL = { ok: tok('--ok'), warn: tok('--warn'), crit: tok('--crit'), line: tok('--line'), muted: tok('--muted'), fg: tok('--fg') };
+  var SENS = [tok('--s1'), tok('--s2'), tok('--s3')];
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var VIS = 110;
+  // Filled in by build_dashboard.py. null means: show the simulated preview.
+  var REAL = /*__PM_DATA__*/null;
+  var FZ = (REAL && REAL.fuzzy) || {
+    life: { short: [-1, 0, 15, 35], medium: [20, 40, 60, 90], long: [60, 100, 200, 300] },
+    wear: { slow: [-1, 0, 0.25, 0.6], fast: [0.25, 0.6, 1, 2] }, warn: 0.3, crit: 0.7
+  };
+
+  var DOMAINS = {
+    aircraft: {
+      key: 'aircraft', pop: ['Aircraft engine', 'Flights · jet engine sound'], popColor: '--s1',
+      sub: 'Hybrid GA + neural network + fuzzy logic on a replayed aircraft engine. Sensors are recorded in flight and read after landing. This preview uses simulated signals; the final build replays NASA C-MAPSS FD001.',
+      unit: 'flights', one: 'flight', cap: 125, base: 0.5, seed: 0, startUnit: 42, unitCount: 100, unitName: 'Engine',
+      lenMin: 128, lenSpan: 234, lenPow: 1.8,
+      h: function (x) { return Math.pow(x, 2.2); }, dref: 0.07,
+      ch: [{ n: 'Sensor 2', dir: 1, amp: 0.6 }, { n: 'Sensor 7', dir: -1, amp: 0.5 }, { n: 'Sensor 11', dir: 1, amp: 0.7 }],
+      levels: [
+        { name: 'NORMAL', label: 'Normal', advice: 'Keep flying. Routine checks only.' },
+        { name: 'WARNING', label: 'Warning', advice: 'Schedule an inspection and plan a spare engine.' },
+        { name: 'CRITICAL', label: 'Critical', advice: 'Remove the engine at the next landing and book a shop visit.' },
+        { name: 'FAILED', label: 'Failure', advice: 'End of life. The engine must be replaced before flying.' }
+      ],
+      derate: 'Take-off thrust derating (optional)',
+      failText: 'Engine reached end of life.',
+      tl: 'Engine life, flight 1 to end of life',
+      tlNote: 'One flight is one cycle. Real FD001 training engines last from 128 to 362 flights, about 206 on average, so the speed control keeps the replay short. Life left is capped at 125 flights, the usual C-MAPSS convention.',
+      chips: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12', 'S13', 'S14', 'S15', 'S16', 'S17', 'S18', 'S19', 'S20', 'S21'],
+      off: ['S1', 'S5', 'S6', 'S10', 'S16', 'S18', 'S19'], hot: ['S2', 'S7', 'S11'],
+      offLabel: 'Dropped, nearly constant',
+      gaNote: 'Seven FD001 sensors barely change during a run, so they carry no wear signal. In the real build the genetic algorithm chooses its own subset, scored by prediction error.'
+    },
+    factory: {
+      key: 'factory', pop: ['Factory machine', 'Readings · motor and bearing sound'], popColor: '--s3',
+      sub: 'The same pipeline on a replayed factory bearing. This preview uses simulated signals; the final build replays a bearing run-to-failure dataset such as NASA IMS or FEMTO.',
+      unit: 'hours', one: 'hour', cap: 200, base: 0.3, seed: 1000, startUnit: 7, unitCount: 20, unitName: 'Machine',
+      lenMin: 260, lenSpan: 440, lenPow: 1.5,
+      h: function (x) { return (Math.exp(4 * x) - 1) / (Math.exp(4) - 1); }, dref: 0.08,
+      ch: [{ n: 'Vibration RMS', dir: 1, amp: 0.75, spiky: true }, { n: 'Bearing temperature', dir: 1, amp: 0.45 }, { n: 'Motor current', dir: 1, amp: 0.35 }],
+      levels: [
+        { name: 'NORMAL', label: 'Normal', advice: 'Keep running. Routine checks only.' },
+        { name: 'WARNING', label: 'Warning', advice: 'Plan a service stop and order the spare bearing.' },
+        { name: 'CRITICAL', label: 'Critical', advice: 'Stop at the next planned break and replace the bearing.' },
+        { name: 'FAILED', label: 'Failure', advice: 'Bearing has failed. Machine stopped for replacement.' }
+      ],
+      derate: 'Commanded speed (optional)',
+      failText: 'Bearing failed.',
+      tl: 'Machine life, hour 1 to failure',
+      tlNote: 'Simulated bearing run, one reading per hour. Vibration usually stays flat for most of the run and then climbs quickly near the end, so the alert has less time to react than on the aircraft engine. Life left is capped at 200 hours.',
+      chips: ['RMS-X', 'RMS-Y', 'Peak', 'Crest', 'Kurt', 'Skew', 'Temp', 'Amps', 'Freq', 'BPFO', 'BPFI', 'Env', 'Speed', 'Load'],
+      off: ['Skew', 'Freq', 'Speed', 'Load'], hot: ['RMS-X', 'Temp', 'Amps'],
+      offLabel: 'Dropped, no link to wear',
+      gaNote: 'Features that do not change with wear are dropped. In the real build the genetic algorithm chooses the subset, scored by prediction error.'
+    }
+  };
+  var D = DOMAINS.aircraft, K = 1;
+
+  var LCOL = [COL.ok, COL.warn, COL.crit, COL.crit];
+
+  function rng(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function clamp(x, a, b) { return Math.max(a, Math.min(b, x)); }
+  function trap(x, a, b, c, d) { if (x <= a || x >= d) return 0; if (x >= b && x <= c) return 1; return x < b ? (x - a) / (b - a) : (d - x) / (d - c); }
+
+  var RULES = [
+    { t: 'Life left <em>long</em> and wear <em>slow</em>', out: 'Normal', w: 0 },
+    { t: 'Life left <em>long</em> and wear <em>fast</em>', out: 'Warning', w: 0.5 },
+    { t: 'Life left <em>medium</em> and wear <em>slow</em>', out: 'Warning', w: 0.5 },
+    { t: 'Life left <em>medium</em> and wear <em>fast</em>', out: 'Critical', w: 1 },
+    { t: 'Life left <em>short</em>', out: 'Critical', w: 1 }
+  ];
+  // life left is passed on the common 0-125 scale (life / K)
+  function T(x, p) { return trap(x, p[0], p[1], p[2], p[3]); }
+  function fuzzy(rul, rate) {
+    var sh = T(rul, FZ.life.short), md = T(rul, FZ.life.medium), lg = T(rul, FZ.life.long);
+    var sl = T(rate, FZ.wear.slow), fa = T(rate, FZ.wear.fast);
+    var s = [Math.min(lg, sl), Math.min(lg, fa), Math.min(md, sl), Math.min(md, fa), sh];
+    var num = 0, den = 0;
+    for (var i = 0; i < 5; i++) { num += s[i] * RULES[i].w; den += s[i]; }
+    return { s: s, score: den > 0 ? num / den : 0 };
+  }
+  function levelOf(score) { return score < FZ.warn ? 0 : score < FZ.crit ? 1 : 2; }
+
+  var L, data, pred, rate, score, lvl, fw, fc, events, pos, playing, speed = 3, unitId = 42;
+
+  function build(id) {
+    var t;
+    if (D.real) {
+      var u = D.real.units[id];
+      L = u.length;
+      data = u.sensors.map(function (a) { return [a[0]].concat(a); });
+      pred = [D.cap].concat(u.pred);
+      rate = [0].concat(u.wear);
+    } else {
+      var r = rng(id * 7919 + 13 + D.seed);
+      L = Math.round(D.lenMin + D.lenSpan * Math.pow(r(), D.lenPow));
+      data = D.ch.map(function (c, i) {
+        var arr = [], n = 0;
+        for (var t = 0; t <= L; t++) {
+          var h = D.h(t / L);
+          n = n * 0.7 + (r() - 0.5) * 0.16;
+          arr.push(D.base + c.dir * c.amp * 0.55 * h + n * 0.5 * (c.spiky ? 1 + 3 * h : 1) + Math.sin(t * 0.45 + i * 2) * 0.02);
+        }
+        return arr;
+      });
+      pred = [D.cap]; rate = [0];
+      var ema = D.cap;
+      for (t = 1; t <= L; t++) {
+        var rul = Math.min(D.cap, L - t);
+        var noisy = rul + (r() - 0.5) * 2 * (rul > 60 * K ? 10 : 5) * K;
+        ema = ema + 0.35 * (noisy - ema);
+        pred[t] = clamp(ema, 0, D.cap);
+        rate[t] = clamp((D.h(t / L) - D.h(Math.max(0, t - 10) / L)) / D.dref, 0, 1);
+      }
+    }
+    score = [0]; lvl = [0];
+    for (t = 1; t <= L; t++) {
+      var f = fuzzy(pred[t] / K, rate[t]);
+      score[t] = f.score;
+      lvl[t] = levelOf(f.score);
+    }
+    fw = fc = null; events = [];
+    for (t = 1; t <= L; t++) {
+      if (fw === null && lvl[t] >= 1) fw = t;
+      if (fc === null && lvl[t] >= 2) fc = t;
+      if (lvl[t] !== lvl[t - 1]) events.push({ t: t, from: lvl[t - 1], to: lvl[t] });
+    }
+    events.push({ t: L, from: lvl[L], to: 3 });
+  }
+
+  var rulesEl = $('rules');
+  RULES.forEach(function (r) { var li = document.createElement('li'); li.innerHTML = '<div>IF ' + r.t + ' THEN <em>' + r.out + '</em></div><span class="s">0.00</span>'; rulesEl.appendChild(li); });
+  var ruleLis = rulesEl.children;
+
+  // Turn a block of real replay data (from train.py) into the settings the page uses.
+  function realize(key) {
+    var d = DOMAINS[key], R = REAL && REAL[key];
+    d.real = R || null;
+    if (!R) return;
+    var m = R.metrics, quick = (m.quick_run ? ' This is a quick test run, so the numbers are not final.' : '') + (m.synthetic ? ' The data is synthetic test data, not NASA data.' : '');
+    d.cap = R.cap; d.unit = R.unit; d.one = R.unit_singular;
+    d.startUnit = 0;
+    d.ch = R.shown_names.map(function (n) { return { n: n }; });
+    d.chips = R.features; d.hot = R.shown;
+    d.off = R.features.filter(function (f) { return R.selected.indexOf(f) < 0; });
+    d.offLabel = 'Dropped by the GA';
+    d.sub = 'Replaying held-out ' + (key === 'aircraft' ? 'engines' : 'bearing runs') + ' the neural network never trained on. ' + R.note + '. Test RMSE ' + m.rmse.toFixed(1) + ' ± ' + m.rmse_std.toFixed(1) + ' (' + m.seeds + ' seeds).' + quick;
+    d.gaNote = 'The genetic algorithm kept ' + R.selected.length + ' of ' + R.features.length + ' inputs, scored by prediction error on held-out data. Pink chips are the three plotted on the traces.';
+    d.pop[1] = R.unit.charAt(0).toUpperCase() + R.unit.slice(1) + ' · ' + (key === 'aircraft' ? 'jet engine sound' : 'motor and bearing sound');
+    if (key === 'factory') {
+      d.unitName = 'Run'; d.tl = 'Bearing life, last readings before failure';
+      d.tlNote = 'Real IMS bearing run, one reading every 10 minutes, showing the final stretch before the bearing failed. Life left is capped at ' + R.cap + ' readings. Vibration stays flat for most of the run and then climbs fast near the end.';
+    } else {
+      d.unitName = 'Engine'; d.tl = 'Engine life, flight 1 to end of life';
+      d.tlNote = 'One flight is one cycle. Life left is capped at ' + R.cap + ' flights, the usual C-MAPSS convention. These engines were held out from training.';
+    }
+    d.failText = key === 'factory' ? 'Bearing failed.' : 'Engine reached end of life.';
+  }
+  realize('aircraft'); realize('factory');
+
+  function applyDomain(key) {
+    D = DOMAINS[key]; K = D.cap / 125;
+    $('d-aircraft').setAttribute('aria-pressed', key === 'aircraft' ? 'true' : 'false');
+    $('d-factory').setAttribute('aria-pressed', key === 'factory' ? 'true' : 'false');
+    $('sub').textContent = D.sub;
+    var sel = $('engine'); sel.innerHTML = '';
+    if (D.real) {
+      D.real.units.forEach(function (u, i) { var o = document.createElement('option'); o.value = i; o.textContent = u.label; sel.appendChild(o); });
+    } else {
+      for (var e = 1; e <= D.unitCount; e++) { var o2 = document.createElement('option'); o2.value = e; o2.textContent = D.unitName + ' ' + e; if (e === D.startUnit) o2.selected = true; sel.appendChild(o2); }
+    }
+    sel.setAttribute('aria-label', D.unitName);
+    for (var i = 0; i < 3; i++) $('lb' + i).textContent = D.ch[i].n;
+    $('unit-small').textContent = D.unit;
+    $('s-err-l').textContent = 'ANN error, ' + D.unit;
+    $('spd-l').textContent = D.derate;
+    $('tl-l').textContent = D.tl;
+    $('tl-note').textContent = D.tlNote;
+    $('ga-note').textContent = D.gaNote;
+    $('ga-l').textContent = D.real ? 'GA feature selection' : 'GA feature selection (example)';
+    var chips = $('chips'); chips.innerHTML = '';
+    D.chips.forEach(function (n) {
+      var c = document.createElement('div');
+      c.className = 'chip ' + (D.off.indexOf(n) >= 0 ? 'off' : D.hot.indexOf(n) >= 0 ? 'hot' : 'sel');
+      c.textContent = n; chips.appendChild(c);
+    });
+    var kept = D.chips.length - D.off.length;
+    $('legend').innerHTML = '<span style="--lc:var(--s1)">Kept by GA (' + kept + ' of ' + D.chips.length + ')</span><span style="--lc:var(--s2)">Shown on traces</span><span style="--lc:var(--muted)">' + D.offLabel + ' (' + D.off.length + ')</span>';
+    setVoice();
+    unitId = D.startUnit;
+    build(unitId); pos = D.real ? 1 : Math.floor(L * 0.6); shown = -1; failed = false;
+    playing = !reduce; $('play').textContent = playing ? 'Pause' : 'Play';
+  }
+
+  var cv = [0, 1, 2].map(function (i) { return $('c' + i); });
+  var strip = $('strip'), pc = $('pc');
+  function sizeCanvas(c) {
+    var d = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+    if (c.width !== Math.round(w * d) || c.height !== Math.round(h * d)) { c.width = Math.round(w * d); c.height = Math.round(h * d); }
+    var g = c.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0); return g;
+  }
+
+  function drawTrace(i, alertCol) {
+    var c = cv[i], g = sizeCanvas(c), w = c.clientWidth, h = c.clientHeight, col = SENS[i];
+    g.clearRect(0, 0, w, h);
+    var cell = 18, dx = w / (VIS - 1), off = (pos * dx) % cell;
+    g.lineWidth = 1; g.strokeStyle = alertCol; g.globalAlpha = 0.13;
+    g.beginPath();
+    for (var x = -off; x < w; x += cell) { g.moveTo(Math.round(x) + 0.5, 0); g.lineTo(Math.round(x) + 0.5, h); }
+    for (var y = 0; y < h; y += cell) { g.moveTo(0, y + 0.5); g.lineTo(w, y + 0.5); }
+    g.stroke(); g.globalAlpha = 1;
+    var cur = Math.floor(pos), frac = pos - cur, pts = [];
+    for (var k = 0; k < VIS + 1; k++) {
+      var t = cur - VIS + 1 + k;
+      if (t < 0 || t > L) continue;
+      pts.push([(k - frac) * dx, h - (0.1 + clamp(data[i][t], 0, 1) * 0.8) * h]);
+    }
+    if (!pts.length) return;
+    function path() { g.beginPath(); pts.forEach(function (p, j) { j ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]); }); }
+    g.lineJoin = 'round'; g.lineCap = 'round';
+    g.strokeStyle = col; g.globalAlpha = 0.28; g.lineWidth = 6; path(); g.stroke();
+    g.globalAlpha = 1; g.lineWidth = 1.8; g.shadowColor = col; g.shadowBlur = 8; path(); g.stroke(); g.shadowBlur = 0;
+    var last = pts[pts.length - 1];
+    g.fillStyle = alertCol; g.shadowColor = alertCol; g.shadowBlur = 10;
+    g.beginPath(); g.arc(last[0], last[1], 3.4, 0, 6.2832); g.fill(); g.shadowBlur = 0;
+  }
+
+  function drawPred(t) {
+    var g = sizeCanvas(pc), w = pc.clientWidth, h = pc.clientHeight, cap = D.cap;
+    g.clearRect(0, 0, w, h);
+    var l = 40, r = 14, top = 34, b = 24, pw = w - l - r, ph = h - top - b;
+    function X(c) { return l + c / L * pw; }
+    function Y(v) { return top + (1 - v / cap) * ph; }
+    g.font = '11px "IBM Plex Mono", monospace'; g.textBaseline = 'middle';
+    g.lineWidth = 1;
+    [0, 0.2, 0.4, 0.6, 0.8, 1].forEach(function (f) {
+      var v = Math.round(f * cap);
+      g.strokeStyle = COL.line; g.beginPath(); g.moveTo(l, Math.round(Y(v)) + 0.5); g.lineTo(w - r, Math.round(Y(v)) + 0.5); g.stroke();
+      g.fillStyle = COL.muted; g.textAlign = 'right'; g.fillText(v, l - 8, Y(v));
+    });
+    g.textAlign = 'center'; g.textBaseline = 'top';
+    [0, 0.25, 0.5, 0.75, 1].forEach(function (f) { var c = Math.round(f * L); g.fillStyle = COL.muted; g.fillText(c, X(c), h - b + 6); });
+    for (var c = 1; c <= t && c <= L; c++) {
+      g.fillStyle = LCOL[lvl[c]]; g.globalAlpha = 0.07;
+      g.fillRect(X(c - 1), top, Math.max(1, X(c) - X(c - 1)) + 0.5, ph);
+    }
+    g.globalAlpha = 1;
+    g.setLineDash([5, 4]); g.strokeStyle = COL.fg; g.lineWidth = 1.5; g.beginPath();
+    for (c = 1; c <= L; c++) { var tv = Math.min(cap, L - c); c === 1 ? g.moveTo(X(c), Y(tv)) : g.lineTo(X(c), Y(tv)); }
+    g.stroke(); g.setLineDash([]);
+    g.strokeStyle = SENS[0]; g.lineWidth = 2; g.shadowColor = SENS[0]; g.shadowBlur = 6; g.beginPath();
+    for (c = 1; c <= Math.min(t, L); c++) { c === 1 ? g.moveTo(X(c), Y(pred[c])) : g.lineTo(X(c), Y(pred[c])); }
+    g.stroke(); g.shadowBlur = 0;
+    var tt = Math.min(t, L);
+    g.strokeStyle = LCOL[failed ? 3 : lvl[tt]]; g.globalAlpha = 0.7; g.beginPath(); g.moveTo(X(tt), top); g.lineTo(X(tt), top + ph); g.stroke(); g.globalAlpha = 1;
+    g.fillStyle = COL.muted; g.textAlign = 'right'; g.textBaseline = 'bottom'; g.fillText(D.one, w - r, h - 2);
+  }
+
+  function drawStrip(t) {
+    var g = sizeCanvas(strip), w = strip.clientWidth, h = strip.clientHeight;
+    g.clearRect(0, 0, w, h);
+    for (var x = 0; x < w; x++) {
+      var c = Math.max(1, Math.min(L, Math.ceil((x + 1) / w * L)));
+      g.fillStyle = c <= t ? LCOL[lvl[c]] : COL.line;
+      g.globalAlpha = c <= t ? 0.9 : 1;
+      g.fillRect(x, 0, 1, h);
+    }
+    g.globalAlpha = 1;
+    var mx = Math.min(w - 1, t / L * w);
+    g.fillStyle = '#fff'; g.fillRect(mx - 1, 0, 2, h);
+  }
+
+  var shown = -1, lastLevel = 0, lastScore = 0, failed = false;
+  function ui(t) {
+    var failedNow = t >= L;
+    var lv = failedNow ? 3 : lvl[t];
+    var sc = failedNow ? 1 : score[t];
+    var p = failedNow ? 0 : pred[t];
+    var col = LCOL[lv];
+    $('rul').textContent = failedNow ? '0' : (p >= D.cap - 1 ? D.cap + '+' : Math.round(p));
+    $('cyc').textContent = D.one.charAt(0).toUpperCase() + D.one.slice(1) + ' ' + Math.min(t, L) + ' of ' + L;
+    var arc = $('arc'); arc.style.stroke = col; arc.setAttribute('stroke-dashoffset', (251.3 * (1 - p / D.cap)).toFixed(1));
+    var pill = $('pill'); pill.textContent = D.levels[lv].name; pill.style.color = col;
+    $('advice').textContent = D.levels[lv].advice;
+    var spd = failedNow ? 0 : Math.round(100 - 50 * sc);
+    $('spd').textContent = spd + '%'; var sb = $('spdbar'); sb.style.width = spd + '%'; sb.style.background = col;
+    var f = failedNow ? { s: [0, 0, 0, 0, 1] } : fuzzy(pred[t] / K, rate[t]);
+    for (var i = 0; i < 5; i++) { ruleLis[i].className = f.s[i] > 0.05 ? 'on' : ''; ruleLis[i].lastChild.textContent = f.s[i].toFixed(2); }
+    for (i = 0; i < 3; i++) { $('v' + i).textContent = (data[i][Math.min(t, L)] * 100).toFixed(1); }
+    $('s-health').textContent = Math.round(p / D.cap * 100) + '%'; $('st-h').style.setProperty('--sc', col);
+    var rt = failedNow ? 1 : rate[t];
+    $('s-wear').textContent = (rt < 0.25 ? 'Slow ' : rt < 0.6 ? 'Medium ' : 'Fast ') + Math.round(rt * 100);
+    $('s-score').textContent = sc.toFixed(2);
+    $('s-err').textContent = failedNow ? '0' : Math.abs(pred[t] - Math.min(D.cap, L - t)).toFixed(1);
+    $('fw').textContent = fw !== null && t >= fw ? D.one + ' ' + fw : '--';
+    $('fc').textContent = fc !== null && t >= fc ? D.one + ' ' + fc : '--';
+    $('ff').textContent = failedNow ? D.one + ' ' + L : '--';
+    $('lead').innerHTML = failedNow && fc !== null ? '<span class="live">Critical alert came ' + (L - fc) + ' ' + D.unit + ' before failure</span>' : '';
+    var html = '';
+    for (var k = events.length - 1; k >= 0; k--) {
+      var ev = events[k]; if (ev.t > t && !(ev.to === 3 && failedNow)) continue;
+      var up = ev.to > ev.from;
+      var txt = ev.to === 3 ? D.failText : (up ? 'Alert raised to ' : 'Back to ') + D.levels[ev.to].label + '. Predicted life left ' + Math.round(pred[ev.t]) + ' ' + D.unit + '.';
+      html += '<li style="--lc:' + LCOL[ev.to] + '"><b>' + D.one.charAt(0).toUpperCase() + D.one.slice(1) + ' ' + ev.t + '</b><span>' + txt + '</span></li>';
+    }
+    $('log').innerHTML = html || '<li style="--lc:' + COL.ok + '"><b>' + D.one.charAt(0).toUpperCase() + D.one.slice(1) + ' 1</b><span>Run started. All readings in the normal range.</span></li>';
+    lastLevel = lv; lastScore = sc; failed = failedNow;
+    audioUpdate();
+  }
+
+  // audio: each machine type has its own voice
+  var ac, osc, lp, oscGain, lfoV, lfoVGain, lfoT, lfoTGain, noiseBuf, bpf, nGain, rGain, master, soundOn = false, nextBeep = 0, nextClick = 0;
+  function setVoice() { if (ac) osc.type = D.key === 'aircraft' ? 'triangle' : 'sawtooth'; }
+  function audioInit() {
+    if (ac) return;
+    var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    ac = new AC();
+    master = ac.createGain(); master.gain.value = 0; master.connect(ac.destination);
+    osc = ac.createOscillator(); osc.frequency.value = 100;
+    lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3000;
+    oscGain = ac.createGain(); oscGain.gain.value = 0.1;
+    osc.connect(lp); lp.connect(oscGain); oscGain.connect(master);
+    lfoV = ac.createOscillator(); lfoV.frequency.value = 5;
+    lfoVGain = ac.createGain(); lfoVGain.gain.value = 2;
+    lfoV.connect(lfoVGain); lfoVGain.connect(osc.frequency);
+    noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+    var d = noiseBuf.getChannelData(0);
+    for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    var ns = ac.createBufferSource(); ns.buffer = noiseBuf; ns.loop = true;
+    bpf = ac.createBiquadFilter(); bpf.type = 'bandpass'; bpf.frequency.value = 1500; bpf.Q.value = 0.7;
+    nGain = ac.createGain(); nGain.gain.value = 0;
+    ns.connect(bpf); bpf.connect(nGain); nGain.connect(master);
+    var lpn = ac.createBiquadFilter(); lpn.type = 'lowpass'; lpn.frequency.value = 140;
+    rGain = ac.createGain(); rGain.gain.value = 0;
+    ns.connect(lpn); lpn.connect(rGain); rGain.connect(master);
+    lfoT = ac.createOscillator(); lfoT.frequency.value = 4;
+    lfoTGain = ac.createGain(); lfoTGain.gain.value = 0;
+    lfoT.connect(lfoTGain); lfoTGain.connect(rGain.gain);
+    setVoice();
+    osc.start(); lfoV.start(); lfoT.start(); ns.start();
+  }
+  function tone(f, t0, dur, vol, type) {
+    var o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.value = f;
+    g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0005, t0 + dur);
+    o.connect(g); g.connect(ac.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+  function click(t0, vol) {
+    var s = ac.createBufferSource(); s.buffer = noiseBuf;
+    var f = ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 2200 + Math.random() * 1800; f.Q.value = 2;
+    var g = ac.createGain(); g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.03);
+    s.connect(f); f.connect(g); g.connect(ac.destination); s.start(t0, Math.random() * 0.5); s.stop(t0 + 0.04);
+  }
+  function audioUpdate() {
+    if (!ac) return;
+    var now = ac.currentTime, s = lastScore, air = D.key === 'aircraft';
+    var on = soundOn && playing && !failed;
+    master.gain.setTargetAtTime(on ? 0.14 : 0, now, 0.08);
+    if (air) {
+      // jet: high whine with vibrato, airy whoosh, low surging rumble when worn
+      osc.frequency.setTargetAtTime(540 + s * 420, now, 0.1);
+      lp.frequency.setTargetAtTime(3200, now, 0.1);
+      oscGain.gain.setTargetAtTime(0.16, now, 0.1);
+      lfoV.frequency.setTargetAtTime(4 + s * 18, now, 0.1);
+      lfoVGain.gain.setTargetAtTime(2 + s * 70, now, 0.1);
+      bpf.frequency.setTargetAtTime(1200 + s * 900, now, 0.1);
+      bpf.Q.setTargetAtTime(0.7, now, 0.1);
+      nGain.gain.setTargetAtTime(0.5, now, 0.1);
+      lfoT.frequency.setTargetAtTime(3 + s * 14, now, 0.1);
+      rGain.gain.setTargetAtTime(s * s * 0.5, now, 0.1);
+      lfoTGain.gain.setTargetAtTime(s * s * 0.35, now, 0.1);
+    } else {
+      // machine: low motor hum, grinding noise and bearing clicks when worn
+      osc.frequency.setTargetAtTime(100, now, 0.1);
+      lp.frequency.setTargetAtTime(500 + s * 600, now, 0.1);
+      oscGain.gain.setTargetAtTime(0.35, now, 0.1);
+      lfoV.frequency.setTargetAtTime(6, now, 0.1);
+      lfoVGain.gain.setTargetAtTime(0.2 + s * 2.5, now, 0.1);
+      bpf.frequency.setTargetAtTime(600 + s * 500, now, 0.1);
+      bpf.Q.setTargetAtTime(1.2, now, 0.1);
+      nGain.gain.setTargetAtTime(s * s * 0.5, now, 0.1);
+      lfoT.frequency.setTargetAtTime(5, now, 0.1);
+      rGain.gain.setTargetAtTime(0.08, now, 0.1);
+      lfoTGain.gain.setTargetAtTime(0.02, now, 0.1);
+      if (on && now >= nextClick) {
+        var rt = s < 0.1 ? 0.4 : 2 + s * 18;
+        click(now, 0.06 + s * 0.28);
+        nextClick = now + (1 / rt) * (0.6 + Math.random() * 0.8);
+      }
+    }
+    if (on && lastLevel === 2 && now >= nextBeep) {
+      if (air) { tone(880, now, 0.2, 0.1, 'sine'); tone(660, now + 0.22, 0.28, 0.1, 'sine'); nextBeep = now + 1.7; }
+      else { tone(330, now, 0.14, 0.05, 'square'); nextBeep = now + 0.6; }
+    }
+  }
+  function cue(key) {
+    if (!ac || !soundOn) return;
+    var now = ac.currentTime;
+    if (key === 'aircraft') {
+      var o = ac.createOscillator(), g = ac.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(300, now); o.frequency.exponentialRampToValueAtTime(900, now + 0.35);
+      g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.08, now + 0.05); g.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      o.connect(g); g.connect(ac.destination); o.start(now); o.stop(now + 0.45);
+    } else {
+      var o2 = ac.createOscillator(), g2 = ac.createGain();
+      o2.type = 'sine'; o2.frequency.setValueAtTime(120, now); o2.frequency.exponentialRampToValueAtTime(50, now + 0.25);
+      g2.gain.setValueAtTime(0.25, now); g2.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      o2.connect(g2); g2.connect(ac.destination); o2.start(now); o2.stop(now + 0.35);
+      click(now, 0.3);
+    }
+  }
+  $('sound').addEventListener('click', function () {
+    soundOn = !soundOn;
+    if (soundOn) { audioInit(); if (ac && ac.resume) ac.resume(); }
+    this.textContent = soundOn ? 'Sound on' : 'Sound off';
+    this.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+    audioUpdate();
+  });
+
+  // switch pop-up
+  var AIR_ICON = '<path d="M32 5 C35 5 36 10 36 16 L36 26 L59 40 L59 46 L36 39 L36 51 L44 57 L44 60 L32 57 L20 60 L20 57 L28 51 L28 39 L5 46 L5 40 L28 26 L28 16 C28 10 29 5 32 5 Z"/>';
+  function gearIcon() {
+    var n = 8, step = 2 * Math.PI / n, ro = 27, ri = 20, d = '';
+    for (var i = 0; i < n; i++) {
+      var a = i * step, q = [[ri, a - 0.34 * step], [ro, a - 0.2 * step], [ro, a + 0.2 * step], [ri, a + 0.34 * step]];
+      for (var j = 0; j < 4; j++) d += (i === 0 && j === 0 ? 'M' : 'L') + (32 + q[j][0] * Math.cos(q[j][1])).toFixed(2) + ' ' + (32 + q[j][0] * Math.sin(q[j][1])).toFixed(2) + ' ';
+    }
+    return '<path d="' + d + 'Z"/><circle cx="32" cy="32" r="9"/>';
+  }
+  var popTimer = 0;
+  function showPop(key) {
+    var dm = DOMAINS[key], pop = $('pop'), ic = $('pop-icon');
+    ic.innerHTML = key === 'aircraft' ? AIR_ICON : gearIcon();
+    ic.style.setProperty('--pc', tok(dm.popColor));
+    ic.setAttribute('class', 'pop-icon');
+    void ic.getBoundingClientRect();
+    ic.setAttribute('class', 'pop-icon ' + (key === 'aircraft' ? 'fly' : 'spin'));
+    $('pop-t').textContent = dm.pop[0]; $('pop-s').textContent = dm.pop[1];
+    pop.classList.add('show');
+    clearTimeout(popTimer);
+    popTimer = setTimeout(function () { pop.classList.remove('show'); }, 1500);
+  }
+
+  // playback
+  var lastTs = 0;
+  function frame(ts) {
+    var dt = lastTs ? Math.min(0.1, (ts - lastTs) / 1000) : 0; lastTs = ts;
+    if (playing) {
+      pos = Math.min(L, pos + dt * 10 * speed);
+      if (pos >= L) { playing = false; $('play').textContent = 'Replay'; }
+    }
+    var t = Math.max(1, Math.floor(pos));
+    if (t !== shown) { shown = t; ui(t); }
+    var col = LCOL[failed ? 3 : lvl[Math.min(t, L)]];
+    for (var i = 0; i < 3; i++) drawTrace(i, col);
+    drawPred(t);
+    drawStrip(t);
+    if (ac) audioUpdate();
+    requestAnimationFrame(frame);
+  }
+
+  $('engine').addEventListener('change', function () { unitId = +this.value; build(unitId); pos = 1; shown = -1; failed = false; playing = true; $('play').textContent = 'Pause'; });
+  $('restart').addEventListener('click', function () { pos = 1; shown = -1; failed = false; playing = true; $('play').textContent = 'Pause'; });
+  $('speed').addEventListener('change', function () { speed = +this.value; });
+  $('play').addEventListener('click', function () {
+    if (pos >= L) { pos = 1; shown = -1; failed = false; }
+    playing = !playing; this.textContent = playing ? 'Pause' : 'Play'; audioUpdate();
+  });
+  function switchTo(key) { if (D.key === key) return; applyDomain(key); showPop(key); cue(key); }
+  $('d-aircraft').addEventListener('click', function () { switchTo('aircraft'); });
+  $('d-factory').addEventListener('click', function () { switchTo('factory'); });
+
+  applyDomain('aircraft');
+  requestAnimationFrame(frame);
+})();
+</script>

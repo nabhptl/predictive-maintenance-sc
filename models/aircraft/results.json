@@ -1,0 +1,192 @@
+{
+  "domain": "aircraft",
+  "label": "Aircraft engine",
+  "note": "C-MAPSS FD001: 80 engines to fit, 20 held out, 100 official test engines",
+  "unit": "flights",
+  "cap": 125,
+  "quick_run": false,
+  "seeds": 5,
+  "train_minutes": 3.5,
+  "features_total": 21,
+  "selected": [
+    "s3",
+    "s4",
+    "s13",
+    "s14",
+    "s15"
+  ],
+  "selected_count": 5,
+  "ga": {
+    "best_fitness": 19.850893561318628,
+    "history": {
+      "best": [
+        20.64356418533689,
+        20.64356418533689,
+        20.49080943303878,
+        20.434497528403437,
+        20.148244484873633,
+        20.113796900001947,
+        19.933748926274095,
+        19.933748926274095,
+        19.902881021697414,
+        19.902881021697414,
+        19.850893561318628,
+        19.850893561318628,
+        19.850893561318628,
+        19.850893561318628,
+        19.850893561318628
+      ],
+      "mean": [
+        21.681044720131805,
+        21.1533725741368,
+        20.969856834716403,
+        21.008142560652438,
+        20.618940211452728,
+        20.505669505935032,
+        20.487031676144717,
+        20.223163176343682,
+        20.190228387531157,
+        20.015804941915338,
+        20.105131536457606,
+        20.148225485183367,
+        20.18259917482586,
+        19.989713080982114,
+        19.99229811030994
+      ],
+      "evals": 157
+    },
+    "evals": 157
+  },
+  "pso": {
+    "best_fitness": 20.174700088285327,
+    "history": {
+      "best": [
+        20.484872099282892,
+        20.484872099282892,
+        20.484872099282892,
+        20.174700088285327,
+        20.174700088285327,
+        20.174700088285327,
+        20.174700088285327,
+        20.174700088285327,
+        20.174700088285327,
+        20.174700088285327,
+        20.174700088285327,
+        20.174700088285327,
+        20.174700088285327,
+        20.174700088285327
+      ],
+      "evals": 300
+    },
+    "selected_count": 6
+  },
+  "hyperparameters": {
+    "hidden": [
+      64,
+      64,
+      32
+    ],
+    "alpha": 0.001,
+    "lr": 0.01,
+    "val_rmse": 18.10382214373264,
+    "history": {
+      "best": [
+        18.10382214373264,
+        18.10382214373264,
+        18.10382214373264,
+        18.10382214373264,
+        18.10382214373264
+      ],
+      "mean": [
+        18.781479520919675,
+        18.536692466898213,
+        18.372113993645726,
+        18.440823881847663,
+        18.287186399794493
+      ],
+      "evals": 16
+    }
+  },
+  "models": [
+    {
+      "name": "Linear Regression (all sensors)",
+      "seeds": 5,
+      "rmse": 21.795297388226896,
+      "rmse_std": 0.0,
+      "rmse_capped": 20.78651456335522,
+      "rmse_capped_std": 0.0,
+      "nasa": 1207.0886051976145,
+      "nasa_std": 0.0
+    },
+    {
+      "name": "Random Forest (all sensors)",
+      "seeds": 5,
+      "rmse": 19.657146278270453,
+      "rmse_std": 0.14219262788144618,
+      "rmse_capped": 18.57413929767747,
+      "rmse_capped_std": 0.13388763265762962,
+      "nasa": 1143.5258147651216,
+      "nasa_std": 34.52925003562884
+    },
+    {
+      "name": "ANN (all sensors)",
+      "seeds": 5,
+      "rmse": 18.506986392819876,
+      "rmse_std": 0.19794659717609123,
+      "rmse_capped": 17.446635208392212,
+      "rmse_capped_std": 0.2567627724750702,
+      "nasa": 1018.9214807704342,
+      "nasa_std": 77.91274809423908
+    },
+    {
+      "name": "ANN + GA sensors",
+      "seeds": 5,
+      "rmse": 19.49606105505702,
+      "rmse_std": 0.1384098667475741,
+      "rmse_capped": 18.44426569368703,
+      "rmse_capped_std": 0.18736647413546834,
+      "nasa": 1171.3337834430074,
+      "nasa_std": 105.51711195174171
+    },
+    {
+      "name": "ANN + GA sensors + GA-tuned (proposed)",
+      "seeds": 5,
+      "rmse": 19.42581947202089,
+      "rmse_std": 0.16820514277158907,
+      "rmse_capped": 18.347916230727616,
+      "rmse_capped_std": 0.2121020122839193,
+      "nasa": 1096.048980356272,
+      "nasa_std": 86.11176208045379
+    }
+  ],
+  "alerts": {
+    "fuzzy": {
+      "units": 20,
+      "mean_warning_lead": 168.25,
+      "mean_critical_lead": 63.8,
+      "min_critical_lead": 33,
+      "critical_missed": 0,
+      "critical_in_time_pct": 100.0,
+      "false_warning_rate_pct": 7.099945385035499,
+      "false_critical_rate_pct": 0.0
+    },
+    "threshold_baseline": {
+      "units": 20,
+      "mean_warning_lead": 66.45,
+      "mean_critical_lead": 26.85,
+      "min_critical_lead": 11,
+      "critical_missed": 0,
+      "critical_in_time_pct": 100.0,
+      "false_warning_rate_pct": 0.0,
+      "false_critical_rate_pct": 0.0
+    }
+  },
+  "fuzzy_rules": [
+    "IF life left is long AND wear is slow THEN Normal",
+    "IF life left is long AND wear is fast THEN Warning",
+    "IF life left is medium AND wear is slow THEN Warning",
+    "IF life left is medium AND wear is fast THEN Critical",
+    "IF life left is short THEN Critical"
+  ],
+  "test_metric_note": "RMSE against the official RUL_FD001 values (last cycle of each test engine)"
+}
